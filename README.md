@@ -14,16 +14,16 @@ This repository contains the **MATLAB implementation** of our paper:
 
 **Beyond Static Imaging: A Dynamic Decision Paradigm for Robust Array-SAR in Diverse Sensing Scenarios**
 
-Currently, we provide the **2-D RMA Imaging with Multi-Range Maximum Intensity Projection (MIP)** script.  
-The script demonstrates how to perform motion correction, RMA focusing, and MIP-based visualization.
+Currently, we provide the **StatFilter** implementation, denoting the static matched filtering method.  
+This represents the earliest paradigm in array-SAR imaging, where the reconstruction is directly obtained via a fixed analytical operator, without leveraging any prior knowledge of the scene.
+
 
 ---
 
 ## ⚙️ Features
-- Reads raw data from `output_rawdata.mat`
-- Applies motion correction in the array plane
-- Implements RMA focusing with frequency-domain phase compensation
-- Produces **512×512 SAR images**
+- Uses output_rawdata.mat (download from cloud link)
+- Implements StatFilter (static matched filtering paradigm)
+- Generates reconstruction results via fixed analytical operator
 - Supports dB visualization with configurable clipping ranges
 
 ---
@@ -33,3 +33,24 @@ The script demonstrates how to perform motion correction, RMA focusing, and MIP-
    ```bash
    git clone https://github.com/<your-username>/DynDecision-ArraySAR.git
    cd DynDecision-ArraySAR
+
+---
+
+## 🔜 TODO
+- Add decision-making module code (state–sequence–decision framework)
+- Add training and evaluation scripts
+- Provide sample dataset generator for testing
+- Add Python implementation (optional)
+
+---
+
+## 📜 License
+This repository is **not open source**.  
+All rights are reserved by the author.  
+Use, modification, distribution, or commercial applications are **prohibited without explicit written permission**.  
+
+For licensing requests, please contact: *your.email@domain*  
+
+---
+
+
