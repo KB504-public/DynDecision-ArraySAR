@@ -40,7 +40,7 @@ This represents the earliest paradigm in array-SAR imaging, where the reconstruc
 - Add decision-making module code (state–sequence–decision framework)
 - Add training and evaluation scripts
 - Provide sample dataset generator for testing
-- Add Python implementation (optional)
+- Add Python implementation 
 
 ---
 
