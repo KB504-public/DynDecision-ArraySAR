@@ -31,7 +31,7 @@ This represents the earliest paradigm in array-SAR imaging, where the reconstruc
 ## ▶️ Usage
 1. Clone the repository:
    ```bash
-   git clone https://github.com/<your-username>/DynDecision-ArraySAR.git
+   git clone https://github.com/KB504-public/DynDecision-ArraySAR.git
    cd DynDecision-ArraySAR
 
 ---
