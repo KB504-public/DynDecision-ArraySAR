@@ -1,6 +1,6 @@
 # DynDecision-ArraySAR
 
-![Overview of DynDecision-ArraySAR](assets/overview.png)
+![Overview of DynDecision-ArraySAR](framework_overview.jpg)
 
 Dynamic Decision Array-SAR reformulates 3D radar imaging as a Markov decision process, 
 replacing static reconstruction with a state–sequence–decision framework. 
