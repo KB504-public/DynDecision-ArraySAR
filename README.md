@@ -45,11 +45,12 @@ This represents the earliest paradigm in array-SAR imaging, where the reconstruc
 ---
 
 ## 📜 License
-This repository is **not open source**.  
-All rights are reserved by the author.  
-Use, modification, distribution, or commercial applications are **prohibited without explicit written permission**.  
 
-For licensing requests, please contact: *your.email@domain*  
+This project is licensed under the **Apache License 2.0**.  
+You may freely use, modify, and distribute this code, provided that you comply with the terms of the license.  
+
+See the [LICENSE](LICENSE) file for full details.
+
 
 ---
 
