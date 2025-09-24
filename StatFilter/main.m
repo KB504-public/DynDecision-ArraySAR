@@ -1,54 +1,57 @@
 %% =========================================================================
-%  2-D RMA Imaging with Multi-Range MIP (512x512, No Crop)
-
+%  StatFilter Imaging (Static Matched Filtering Method, 512x512, No Crop)
+%
 %  Description
 %  -----------
-%  This script performs 2-D Range Migration Algorithm (RMA) imaging for a
-%  planar scan (Nx x Nz) using single-TX/multi-RX MIMO-equivalent data.
-%  It computes range FFT, applies per-range-bin (ID) RMA focusing, stacks
-%  the magnitude images over a set of range bins, and visualizes the
-%  Maximum Intensity Projection (MIP) along the range-bin dimension.
+%  This script implements **StatFilter**, denoting the static matched
+%  filtering method. StatFilter represents the earliest paradigm in
+%  array-SAR imaging, where the image is directly reconstructed via a
+%  fixed analytical operator, without exploiting any prior knowledge of
+%  the scene. All parameters remain fixed once defined (i.e., no adaptive
+%  updates across intermediate states).
 %
-%  Key features
-%  -----------
-%  - Reads raw data layout used in 'output_rawdata' (Matlab .mat).
-%  - Performs simple motion correction in array plane (row shift).
-%  - RMA focusing with frequency-domain phase compensation.
-%  - No cropping: final image is exactly 512x512.
-%  - dB visualization with configurable clipping/display ranges.
+%  What this script does
+%  ---------------------
+%  1) Reads raw array-SAR echoes from 'output_rawdata.mat';
+%  2) Applies simple array-plane motion correction (row-wise shift);
+%  3) Performs frequency-domain static matched filtering per range bin (ID);
+%  4) Aggregates results via Maximum Intensity Projection (MIP) over IDs;
+%  5) Visualizes a 512x512 magnitude image in dB scale (no cropping).
 %
 %  Notes
 %  -----
-%  - Change `idRange` to sweep different beat-frequency bins.
-%  - Ensure your raw data struct matches fields used below.
+%  - Change `idRange` to focus different beat-frequency bins.
+%  - Ensure the raw data struct matches the expected fields below.
 %  - Requires MATLAB R2016b+ (for local functions in scripts).
 % =========================================================================
 
 clear; close all; clc;
 
 %% ----------------------------- I/O Settings ------------------------------
-rawMatFile = 'output_rawdata';   % .mat file produced by your ADC pipeline
+% Raw data file produced by your ADC pipeline. The file must contain a struct:
+%   adcRawData.data  % cell array where each cell is [numRx x numSamples]
+rawMatFile = 'output_rawdata';
 assert(exist([rawMatFile '.mat'],'file')==2, ...
     'Cannot find %s.mat in current folder.', rawMatFile);
 
-load(rawMatFile, 'adcRawData');  % expected: adcRawData.data is a cell array
+load(rawMatFile, 'adcRawData');
 assert(isfield(adcRawData,'data') && ~isempty(adcRawData.data), ...
     'adcRawData.data is missing or empty.');
 
 %% ----------------------------- Data Geometry -----------------------------
-numFrames   = numel(adcRawData.data);  % number of frames
-numTx       = 1;                       % # of transmitting antennas
-numRx       = 4;                       % # of receiving  antennas
-numSamples  = 256;                     % # of time samples per chirp
+numFrames   = numel(adcRawData.data);  % # frames
+numTx       = 1;                       % # transmitting antennas
+numRx       = 4;                       % # receiving  antennas
+numSamples  = 256;                     % # time samples per chirp
 
-% Repack raw echoes (frame-major) into [numTx*numRx*m] x [numSamples]
+% Repack raw echoes (frame-major) into [numTx*numRx*numFrames] x [numSamples]
 rawEcho = zeros(numFrames*numTx*numRx, numSamples);
 for ii = 1:numTx*numFrames
     rawEcho((ii-1)*numRx+1:ii*numRx, :) = squeeze(adcRawData.data{ii});
 end
 
-%% ------------------- Motion Correction in Array Plane --------------------
-% Array sampling: Nx (horizontal), Nz (vertical)
+%% ----------------- Array-Plane Motion Correction (Static) ----------------
+% Array sampling grid: Nx (horizontal), Nz (vertical)
 Nx = 407;                 % horizontal sampling points (x)
 Nz = 200;                 % vertical   sampling points (y)
 numMimo = numTx*numRx;    % MIMO-equivalent channels (here: 4)
@@ -57,7 +60,7 @@ numMimo = numTx*numRx;    % MIMO-equivalent channels (here: 4)
 Sr = rawEcho(1:numMimo:end, :);     % [Nx*Nz] x [numSamples]
 Echo = zeros(Nx*Nz, numSamples);    % corrected 1T1R echo buffer
 
-% Simple linear motion correction: progressive row shift
+% Static, linear motion correction model: progressive row shift
 numErrPts = 43;                      % number of "movement error" points
 for iz = 1:Nz
     kk = floor(iz/Nz * numErrPts);   % row-wise shift amount
@@ -68,127 +71,146 @@ end
 Echo = reshape(Echo, [Nx, Nz, numSamples]);
 
 %% ----------------------------- System Params -----------------------------
+% Static (fixed) acquisition/processing parameters (no adaptive updates)
 dxMm          = 1;          % sampling step along x (mm)
 dyMm          = 2;          % sampling step along y (mm)
 nFftSpace     = 512;        % spatial FFT size -> final image is 512x512
 
-cLight        = physconst('lightspeed');  % 2.9979e8 m/s
-f0Hz          = (77 + 1.8) * 1e9;         % start (or ref) frequency
-fsHz          = 5e6;                      % ADC sampling rate
-tsSec         = 1/fsHz;                   % ADC sampling period
+cLight        = physconst('lightspeed');  % 2.99792458e8 m/s
+f0Hz          = (77 + 1.8) * 1e9;         % start (or ref) frequency (Hz)
+fsHz          = 5e6;                      % ADC sampling rate (Hz)
+tsSec         = 1/fsHz;                   % ADC sampling period (s)
 slopeHzPerSec = 70.295e12;                % FMCW chirp slope (Hz/s)
-tInstSec      = 6.2516e-10;               % instrument delay for range calib
+tInstSec      = 6.2516e-10;               % instrument delay for range calib (s)
 
-k0 = 2*pi*f0Hz/cLight; % reference wavenumber
+k0 = 2*pi*f0Hz/cLight; % reference wavenumber (rad/m)
 
 %% -------------------------- Range FFT (Inspection) -----------------------
+% Fixed time-FFT length and axis. Used by StatFilter to index range bins.
 nFftTime = numSamples;                   % time-FFT length
 SrFft = fft(Echo, nFftTime, 3);          % [Nx, Nz, nFftTime]
 
-% (Optional) quick look at range spectra
-figure('Name','Range FFT (Quick Look)'); 
+% (Optional) quick look at range spectra (static preview)
+figure('Name','Range FFT (Quick Look)');
 imagesc(abs(reshape(SrFft, [], nFftTime)));
 xlabel('Range-FFT Bin'); ylabel('Spatial Index'); title('Range FFT Magnitude');
 colormap('turbo'); colorbar;
 
-%% -------------------- RMA Imaging over Multiple Range IDs ----------------
+%% ------------- StatFilter: Static Matched Filtering (per ID) -------------
+% Choose a *fixed* set of range bins (IDs). No adaptive ID selection.
 idRange = 12:20;                         % beat-frequency bins to focus
 numIds  = numel(idRange);
 
 % Precompute kx, ky grids (in rad/m). Convert dx, dy (mm) to meters.
+% These spectral supports are fixed for the entire run (static operator).
 wx = 2*pi / (dxMm*1e-3);
 kx = linspace(-wx/2, wx/2, nFftSpace);   % [1 x 512]
 wy = 2*pi / (dyMm*1e-3);
 ky = linspace(-wy/2, wy/2, nFftSpace).'; % [512 x 1]
 
-% Propagation wavenumber support (|k_t| <= 2k0); evanescent set to zero
-% kProp is 2D matrix over ky,kx
+% Propagating wavenumber support: |k_t| <= 2k0; evanescent part set to zero.
+% kProp is the static, precomputed kernel backbone used by matched filtering.
 kProp = single(sqrt( max((2*k0)^2 - (kx.^2 + ky.^2), 0) ));  % [512 x 512]
 
-% Allocate MIP stack
+% Allocate MIP stack over IDs (StatFilter results aggregated by max)
 mipStack = zeros(nFftSpace, nFftSpace, numIds, 'single');
 
 for it = 1:numIds
-    thisId   = idRange(it);
-    % pick this range-bin slice, transpose to [Nz x Nx] so x is columns
-    sarData  = squeeze(SrFft(:,:,thisId)).';   % [Nz, Nx]
+    thisId  = idRange(it);
 
-    % serpentine (snake) correction: flip even rows to align scan direction
+    % Pick this range-bin slice and transpose to [Nz x Nx] (x as columns).
+    % This is a *fixed* selection; no state-dependent reweighting.
+    sarData = squeeze(SrFft(:,:,thisId)).';   % [Nz, Nx]
+
+    % Serpentine line correction: flipping even rows to align scan direction.
+    % Again, this is a static pre-process (not learned/adaptive).
     for iz = 2:2:Nz
         sarData(iz,:) = fliplr(sarData(iz,:));
     end
 
-    % Beat-bin -> range (meters), then phase kernel for RMA
+    % Beat-bin -> range (meters); used to build the static phase kernel.
     Rm = cLight/2 * ( thisId/(slopeHzPerSec*tsSec*nFftTime) - tInstSec );
 
-    % Build the 2-D phase compensation kernel (centered in k-domain)
+    % Build the *static* 2-D matched filtering kernel in k-domain.
     phaseKernel = buildPhaseKernel(kProp, kx, ky, Rm, k0);
 
-    % Size alignment (zero-pad either data or kernel to match)
+    % Size alignment (zero-pad) to match operator dimensions. Static padding.
     [sarDataPad, phaseKernelPad] = padToMatch(sarData, phaseKernel);
 
-    % Frequency-domain multiplication (RMA focusing)
+    % Frequency-domain multiplication (static matched filtering operator).
     sarDataF = fft2(sarDataPad, nFftSpace, nFftSpace);
     imgCplx  = ifft2( sarDataF .* phaseKernelPad );  % complex image 512x512
 
-    mipStack(:,:,it) = abs(imgCplx);                 % magnitude image
+    % Magnitude of StatFilter output (per ID). No adaptive rescaling.
+    mipStack(:,:,it) = abs(imgCplx);
 end
 
-% Maximum-Intensity Projection (along ID dimension)
+% Maximum-Intensity Projection (StatFilter results aggregated over IDs).
 mipImg = max(mipStack, [], 3);   % 512x512
 
 %% ------------------------------ Visualization ----------------------------
-% dB image with clipping/display range = 40 dB
+% Fixed (static) dB visualization settings.
 dbCfg.clipRange    = 40;
 dbCfg.displayRange = 40;
 
 dbImg = toDbImage(mipImg, dbCfg.clipRange, dbCfg.displayRange);
 
-figure('Name','SAR Image - 2D RMA (MIP, 512x512)');
+figure('Name','StatFilter Image (MIP, 512x512)');
 imagesc(dbImg.data, [-dbImg.range, 0]);
 axis image off;
 colormap('turbo'); colorbar;
-title(sprintf('SAR Image - 2D RMA (MIP of ID %d–%d, 512×512)', idRange(1), idRange(end)));
+title(sprintf('StatFilter (Static Matched Filtering) — MIP of ID %d–%d, 512×512', ...
+      idRange(1), idRange(end)));
 
 %% ============================== Local Functions ==========================
 function phaseKernel = buildPhaseKernel(kProp, kx, ky, Rm, k0)
-%BUILDPHASEKERNEL Build the centered 2-D RMA phase compensation kernel.
-%   kProp : [Ny x Nx] propagating wavenumber, sqrt((2k0)^2 - kx^2 - ky^2)
-%   kx    : [1 x Nx] spectral grid along x (rad/m)
-%   ky    : [Ny x 1] spectral grid along y (rad/m)
-%   Rm    : range (m) corresponding to a beat-bin
-%   k0    : reference wavenumber at f0 (rad/m)
+%BUILDPHASEKERNEL Build the static 2-D matched filtering kernel in k-domain.
+%   StatFilter uses a fixed analytical operator. This function constructs
+%   a centered (fftshift-ed) kernel with evanescent components removed.
 %
-% Returns:
-%   phaseKernel : [Ny x Nx], centered (fftshift) and masked for |k_t|>2k0
+%   Inputs:
+%     kProp : [Ny x Nx]  sqrt((2k0)^2 - kx^2 - ky^2), nonnegative (static)
+%     kx    : [1 x Nx]   spectral grid along x (rad/m)
+%     ky    : [Ny x 1]   spectral grid along y (rad/m)
+%     Rm    : scalar     range (m) corresponding to the chosen range bin
+%     k0    : scalar     reference wavenumber (rad/m)
+%
+%   Output:
+%     phaseKernel : [Ny x Nx], centered and masked for |k_t|>2k0
+%
+%   Note:
+%     The multiplication by kProp is a standard dispersion-compensation
+%     choice in ω–k domain processing; it remains fixed across the run.
 
-    % Evanescent region mask (|k_t| > 2k0) -> zero out
+    % Evanescent region mask (|k_t| > 2k0) -> zero out (static support)
     [KX,KY] = meshgrid(kx, ky);
     outCone = (KX.^2 + KY.^2) > (2*k0)^2;
 
-    % Base phase term and amplitude weighting (standard ω-domain RMA)
+    % Base phase term with static propagation kernel
     phase0 = exp(-1i * Rm .* kProp);
     phase0(outCone) = 0;
 
-    % Common choice: multiply by kProp to compensate dispersion (optional)
+    % Fixed amplitude weighting (no adaptive modulation)
     phaseKernel = kProp .* phase0;
 
-    % Center in frequency (so that ifft2 returns spatially centered image)
+    % Center in frequency so that ifft2 returns a spatially centered image
     phaseKernel = fftshift(fftshift(phaseKernel,1),2);
 end
 
 function [Aout, Bout] = padToMatch(A, B)
-%PADTOMATCH Zero-pad 2 matrices to the same size (centering the content).
-%   A, B : input 2-D arrays (real/complex). The smaller one will be padded
-%          around to match the larger one's size (both dims).
-% Returns:
-%   Aout, Bout : size-matched arrays.
+%PADTOMATCH Zero-pad two matrices to the same size (centered).
+%   This is a static alignment step; no data-dependent resizing/warping.
+%
+%   Inputs:
+%     A, B : 2-D arrays (real/complex). The smaller one is padded to match.
+%   Outputs:
+%     Aout, Bout : size-matched arrays.
 
     [ay, ax] = size(A);
     [by, bx] = size(B);
     Aout = A; Bout = B;
 
-    % Match X
+    % Match X dimension
     if bx > ax
         pre  = floor((bx - ax)/2);
         post = ceil( (bx - ax)/2);
@@ -201,7 +223,7 @@ function [Aout, Bout] = padToMatch(A, B)
         Bout = padarray(Bout, [0 post], 0, 'post');
     end
 
-    % Match Y
+    % Match Y dimension
     [ay, ax] = size(Aout);
     [by, bx] = size(Bout);
     if by > ay
@@ -218,16 +240,16 @@ function [Aout, Bout] = padToMatch(A, B)
 end
 
 function out = toDbImage(X, clipRange, displayRange)
-%TODBIMAGE Convert a real/complex image to normalized dB scale.
+%TODBIMAGE Convert a magnitude image to normalized dB scale (static view).
 %   out = toDbImage(X, clipRange)
 %   out = toDbImage(X, clipRange, displayRange)
 %
-%   - X: real or complex 2-D image.
-%   - clipRange (dB): values below -clipRange will be set to -displayRange.
+%   - X: real/complex 2-D image (magnitude will be used).
+%   - clipRange (dB): values below -clipRange are set to -displayRange.
 %   - displayRange (dB): colorbar span [-displayRange, 0].
 %
 %   Returns a struct:
-%       out.data  : dB image of X normalized to its global max (= 0 dB peak)
+%       out.data  : dB image normalized to its global max (= 0 dB peak)
 %       out.range : displayRange (for convenience)
 
     if nargin < 3
