@@ -14,7 +14,7 @@ You may use, modify, and distribute this code (including for commercial purposes
 
 In case of any inconsistency, the **Apache-2.0** license prevails.
 
-## 2) Attribution (Recommended)
+## 2) Attribution 
 When using this code in academic or industrial contexts, please provide appropriate credit (e.g., cite the related publication, acknowledge the authors, and reference this repository).
 
 ## 3) Third-Party Components
