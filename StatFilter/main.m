@@ -1,5 +1,5 @@
 %% =========================================================================
-%  StatFilter Imaging (Static Matched Filtering Method, 512x512, No Crop)
+%  StatFilter Imaging (Static Matched Filtering Method)
 %
 %  Description
 %  -----------
@@ -16,13 +16,11 @@
 %  2) Applies simple array-plane motion correction (row-wise shift);
 %  3) Performs frequency-domain static matched filtering per range bin (ID);
 %  4) Aggregates results via Maximum Intensity Projection (MIP) over IDs;
-%  5) Visualizes a 512x512 magnitude image in dB scale (no cropping).
+%  5) Visualizes a 512x512 magnitude image in dB scale.
 %
 %  Notes
 %  -----
-%  - Change `idRange` to focus different beat-frequency bins.
-%  - Ensure the raw data struct matches the expected fields below.
-%  - Requires MATLAB R2016b+ (for local functions in scripts).
+%  - Change `idRange` to focus different range units.
 % =========================================================================
 
 clear; close all; clc;
