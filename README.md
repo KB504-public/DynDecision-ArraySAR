@@ -2,14 +2,18 @@
 
 ![Overview of DynDecision-ArraySAR](framework_overview.jpg)
 
-Dynamic Decision Array-SAR reformulates 3D radar imaging as a Markov decision process, 
-replacing static reconstruction with a state–sequence–decision framework. 
-Adaptive actions and evaluation-guided feedback enable robust, scenario-adaptive imaging 
-across noise levels, measurement models, and scene distributions.
+In this work, as shown above, we propose a dynamic decision-making framework for array-SAR imaging. Unlike conventional approaches that rely on static structures, fixed parameters, and outcome-level supervision, our method introduces dynamic structures and parameters guided by state-level supervision, enabling adaptive processing across diverse measurement conditions. The imaging process is reformulated from a static pipeline into a Markov decision process, where the decision-making module selects actions according to the current state, the state-transition module updates the state, and the evaluation module provides feedback on both states and actions. Through this perspective of "from states to sequence, and decision making," the framework advances array-SAR imaging from rigid fixed flows toward adaptive and scenario-specific imaging. This shift allows the proposed method to generalize better for large-scale sensing of diverse scenarios.
 
 ---
 
-## 📖 Description
+## 📖 How to access?
+
+Our research team maintains specific guidelines for sharing our primary code and associated datasets. For the baseline methods, code would be avaiable without requiremetns and for the primal code,
+To obtain access to the code, please complete and sign the required agreement, then email the scanned document to xdma@std.uestc.edu.cn or zhanxu@std.uestc.edu.cn.
+
+
+
+
 This repository contains the **MATLAB implementation** of our paper:  
 
 **Beyond Static Imaging: A Dynamic Decision Paradigm for Robust Array-SAR in Diverse Sensing Scenarios**
