@@ -12,7 +12,7 @@
 %
 %  What this script does
 %  ---------------------
-%  1) Reads raw array-SAR echoes from 'output_rawdata.mat';
+%  1) Reads raw ground-based prototype array-SAR echoes from 'output_rawdata.mat';
 %  2) Applies simple array-plane motion correction (row-wise shift);
 %  3) Performs frequency-domain static matched filtering per range bin (ID);
 %  4) Aggregates results via Maximum Intensity Projection (MIP) over IDs;
@@ -88,12 +88,6 @@ k0 = 2*pi*f0Hz/cLight; % reference wavenumber (rad/m)
 nFftTime = numSamples;                   % time-FFT length
 SrFft = fft(Echo, nFftTime, 3);          % [Nx, Nz, nFftTime]
 
-% (Optional) quick look at range spectra (static preview)
-figure('Name','Range FFT (Quick Look)');
-imagesc(abs(reshape(SrFft, [], nFftTime)));
-xlabel('Range-FFT Bin'); ylabel('Spatial Index'); title('Range FFT Magnitude');
-colormap('turbo'); colorbar;
-
 %% ------------- StatFilter: Static Matched Filtering (per ID) -------------
 % Choose a *fixed* set of range bins (IDs). No adaptive ID selection.
 idRange = 12:20;                         % beat-frequency bins to focus
@@ -147,18 +141,47 @@ end
 mipImg = max(mipStack, [], 3);   % 512x512
 
 %% ------------------------------ Visualization ----------------------------
-% Fixed (static) dB visualization settings.
-dbCfg.clipRange    = 30;
-dbCfg.displayRange = 30;
+% Configuration for dB visualization and grid settings
+config.clipRange = 30;
+config.displayRange = 30;
+config.grid_size = 0.0007813; % Grid size
+config.x_ticks = linspace(-255, 256, 512) * config.grid_size; % X-axis ticks
+config.y_ticks = linspace(-255, 256, 512) * config.grid_size; % Y-axis ticks
 
-dbImg = toDbImage(mipImg, dbCfg.clipRange, dbCfg.displayRange);
+% Define the region to display (slice selection)
+config.x_range = 85:445; % X indices
+config.y_range = 100:281; % Y indices
 
-figure('Name','StatFilter Image (MIP, 512x512)');
-imagesc(dbImg.data, [-dbImg.range, 0]);
-axis image off;
-colormap('jet'); colorbar;
-title(sprintf('StatFilter', ...
-      idRange(1), idRange(end)));
+% Convert to dB image
+dbImg = toDbImage(mipImg, config.clipRange, config.displayRange);
+
+% Calculate the center of the selected range (dynamically)
+config.x_center = mean(config.x_ticks(config.x_range));
+config.y_center = mean(config.y_ticks(config.y_range));
+
+% Flip the image along the vertical direction (row inversion)
+flipped_dbImg_data = flipud(dbImg.data(config.y_range, config.x_range));
+
+% Create the first figure: StatFilter Image
+figure('Name','StatFilter Image','Color','w');
+% Display flipped image with the specified range, using the coordinates defined above
+imagesc(config.x_ticks(config.x_range) - config.x_center, config.y_ticks(config.y_range) - config.y_center, ...
+    flipped_dbImg_data, [-config.displayRange, 0]); % Range for dB display and centered coordinates
+
+% Display the axis
+axis on; %
+colormap('jet');
+colorbar;
+
+% Title, xlabel, ylabel with specific style
+title('StatFilter' , 'FontName', 'Times New Roman', 'FontWeight', 'bold', 'FontSize', 12);
+xlabel('Azimuth (m)', 'FontName', 'Times New Roman', 'FontWeight', 'bold', 'FontSize', 12);
+ylabel('Height (m)', 'FontName', 'Times New Roman', 'FontWeight', 'bold', 'FontSize', 12);
+set(gca, 'FontName', 'Times New Roman', 'FontWeight', 'bold', 'FontSize', 12); 
+
+% Set aspect ratio as specified
+daspect([2, 1, 1]);
+
 
 %% ============================== Local Functions ==========================
 function phaseKernel = buildPhaseKernel(kProp, kx, ky, Rm, k0)
