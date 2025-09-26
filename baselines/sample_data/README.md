@@ -4,8 +4,9 @@ This folder contains the measurement data for the near-field sensing test. The d
 
 ## Target Image
 
-For a visual reference of the target, you can view the optical image of the **wrench target** in the same directory as this README file. The image is located at:  
-[nearfield_wrench.jpg](nearfield_wrench.jpg)
+For a visual reference of the target, you can view the optical image of the **wrench target** below:
+
+<img src="nearfield_wrench.jpg" alt="Wrench Target" width="200" />
 
 ## Data Details
 
